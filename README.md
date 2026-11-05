@@ -1,3 +1,5 @@
+https://bakurawest.github.io/shrink-video/
+
 Compress a video down to a target file size so it fits Discord and other upload limits.
 
 Everything runs in your browser. Your video is never uploaded to any server.
