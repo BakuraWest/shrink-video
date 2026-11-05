@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shrink a video</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%2306131F%27/%3E%3Cg fill=%27none%27 stroke=%27%23A3D4DD%27 stroke-width=%272.2%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M5 11q3.5-3.5 7 0t7 0t7 0%27/%3E%3Cpath d=%27M5 17q3.5-3.5 7 0t7 0t7 0%27 opacity=%27.65%27/%3E%3Cpath d=%27M5 23q3.5-3.5 7 0t7 0t7 0%27 opacity=%27.35%27/%3E%3C/g%3E%3C/svg%3E">
+<meta name="theme-color" content="#06131F">
+<meta name="description" content="Compress a video to a target file size in your browser. Nothing is uploaded.">
+<style>
+  :root {
+    color-scheme: dark;
+    --abyss: #06131F;
+    --midnight: #0B2233;
+    --deep: #123B4A;
+    --storm: #1D5968;
+    --glint: #39899A;
+    --foam: #A3D4DD;
+    --ink: #E4EEF1;
+    --muted: #8AA3AE;
+    --line: #1B3646;
+    --warn-bg: #2b2716;
+    --warn-ink: #e6d49a;
+    --err-bg: #3a1b1d;
+    --err-ink: #f3bdb4;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--abyss); }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background:
+      radial-gradient(900px 520px at 50% -12%, rgba(29, 89, 104, .38), transparent 70%),
+      var(--abyss);
+    background-repeat: no-repeat;
+    position: relative;
+  }
+  ::selection { background: var(--storm); color: #fff; }
+
+  /* ---- the sea ---- */
+  .sea {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: 62vh;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    -webkit-mask-image: linear-gradient(to top, #000 50%, transparent);
+            mask-image: linear-gradient(to top, #000 50%, transparent);
+  }
+  .sea svg {
+    position: absolute;
+    left: 0; bottom: 0;
+    width: 200%;
+    will-change: transform;
+    animation: drift linear infinite;
+  }
+  .sea .w1 { height: 100%; animation-duration: 90s; }
+  .sea .w2 { height: 70%;  animation-duration: 55s; animation-direction: reverse; }
+  .sea .w3 { height: 44%;  animation-duration: 36s; }
+  .sea .w1 .fill { fill: var(--storm); opacity: .20; }
+  .sea .w2 .fill { fill: var(--deep);  opacity: .65; }
+  .sea .w3 .fill { fill: var(--midnight); opacity: .96; }
+  .sea .crest { fill: none; stroke: var(--glint); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .sea .w2 .crest { opacity: .16; }
+  .sea .w3 .crest { opacity: .38; }
+  @keyframes drift { to { transform: translateX(-50%); } }
+
+  main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; padding: 56px 20px 72px; }
+
+  header { margin-bottom: 24px; }
+  h1 {
+    display: flex; align-items: center; gap: 12px;
+    font: 600 2.1rem/1.15 Georgia, "Iowan Old Style", "Times New Roman", serif;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+    color: #fff;
+  }
+  .mark { flex: none; fill: none; stroke: var(--foam); stroke-width: 2; stroke-linecap: round; }
+  .lead { margin: 0 0 6px; color: var(--ink); }
+  .privacy { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+  .card {
+    background: rgba(11, 34, 51, .94);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, .5);
+  }
+
+  #drop {
+    border: 1.5px dashed #2a5465;
+    border-radius: 6px;
+    background: rgba(6, 19, 31, .55);
+    padding: 32px 20px;
+    text-align: center;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+  }
+  #drop.over {
+    border-color: var(--foam);
+    background: rgba(18, 59, 74, .6);
+    box-shadow: 0 0 0 5px rgba(163, 212, 221, .08);
+  }
+  #drop p { margin: 0; }
+  #drop .sub { color: var(--muted); font-size: 0.875rem; margin: 4px 0 16px; }
+
+  button {
+    font: inherit;
+    border-radius: 4px;
+    border: 1px solid #2a5465;
+    background: transparent;
+    color: var(--ink);
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  button:hover:not(:disabled) { border-color: var(--glint); background: rgba(57, 137, 154, .12); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.primary {
+    background: var(--storm);
+    border-color: var(--storm);
+    color: #fff;
+    font-weight: 600;
+  }
+  button.primary:hover:not(:disabled) { background: #2a7384; border-color: #2a7384; }
+  :focus-visible { outline: 2px solid var(--foam); outline-offset: 2px; }
+
+  #fileInfo { margin: 14px 0 0; font-weight: 600; word-break: break-all; }
+  #fileInfo span { font-weight: 400; color: var(--muted); }
+
+  fieldset { border: 0; padding: 0; margin: 26px 0 0; }
+  legend { font-weight: 600; padding: 0; margin-bottom: 8px; }
+  .targets { display: flex; flex-wrap: wrap; gap: 8px; }
+  .targets label {
+    border: 1px solid var(--line);
+    background: rgba(6, 19, 31, .5);
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: border-color .15s, background .15s;
+  }
+  .targets label:hover { border-color: #2a5465; }
+  .targets label:has(input:checked) {
+    border-color: var(--glint);
+    background: var(--deep);
+    box-shadow: inset 0 0 0 1px var(--glint);
+  }
+  .targets input[type=radio] { accent-color: var(--foam); margin: 0; }
+  input[type=number], select {
+    font: inherit;
+    color: var(--ink);
+    background: var(--abyss);
+    border: 1px solid #2a5465;
+    border-radius: 4px;
+    padding: 3px 6px;
+  }
+  input[type=number] { width: 5.5em; }
+  .hint { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
+
+  details { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .opts { display: grid; gap: 12px; margin-top: 14px; }
+  .opts .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .opts .check { justify-content: flex-start; }
+  .opts input[type=checkbox] { accent-color: var(--foam); }
+
+  #estimate { margin: 20px 0 0; font-size: 0.9rem; color: var(--muted); min-height: 1.4em; }
+  .note { margin: 12px 0 0; padding: 10px 12px; border-radius: 4px; font-size: 0.9rem; }
+  .note.warn { background: var(--warn-bg); color: var(--warn-ink); }
+  .note.err { background: var(--err-bg); color: var(--err-ink); }
+
+  .actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+  #progressBox { margin-top: 24px; }
+  .bar { height: 10px; background: var(--abyss); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .bar > div {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, var(--glint), var(--foam), var(--glint));
+    background-size: 200% 100%;
+    animation: swell 3s linear infinite;
+    transition: width .2s;
+  }
+  @keyframes swell { to { background-position: -200% 0; } }
+  .progress-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; font-size: 0.9rem; }
+  #status { color: var(--muted); }
+  #pct { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--foam); }
+
+  #result {
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    background: rgba(6, 19, 31, .55);
+    border-radius: 6px;
+    padding: 16px;
+  }
+  #result h2 { margin: 0 0 4px; font-size: 1.05rem; color: #fff; }
+  #result p { margin: 0 0 12px; }
+  #result .good { color: var(--foam); font-weight: 600; }
+  a.btn {
+    display: inline-block;
+    text-decoration: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    background: var(--foam);
+    color: var(--abyss);
+    font-weight: 600;
+    transition: filter .15s;
+  }
+  a.btn:hover { filter: brightness(1.08); }
+
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+  footer strong { color: var(--ink); }
+  footer ul { margin: 6px 0 0; padding-left: 18px; }
+  footer li { margin-bottom: 4px; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 480px) {
+    main { padding-top: 36px; }
+    .card { padding: 16px; }
+    h1 { font-size: 1.8rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sea svg, .bar > div { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="sea" aria-hidden="true">
+  <svg class="w1" viewBox="0 0 2880 320" preserveAspectRatio="none"><path class="fill" d="M0 160 c240 -60 720 60 960 0 c240 -60 720 60 960 0 c240 -60 720 60 960 0 V320 H0 Z"/><path class="crest" style="display:none" d="M0 160 c240 -60 720 60 960 0 c240 -60 720 60 960 0 c240 -60 720 60 960 0"/></svg>
+  <svg class="w2" viewBox="0 0 2880 320" preserveAspectRatio="none"><path class="fill" d="M0 170 c180 -55 540 55 720 0 c180 -55 540 55 720 0 c180 -55 540 55 720 0 c180 -55 540 55 720 0 V320 H0 Z"/><path class="crest" d="M0 170 c180 -55 540 55 720 0 c180 -55 540 55 720 0 c180 -55 540 55 720 0 c180 -55 540 55 720 0"/></svg>
+  <svg class="w3" viewBox="0 0 2880 320" preserveAspectRatio="none"><path class="fill" d="M0 150 c120 -40 360 40 480 0 c120 -40 360 40 480 0 c120 -40 360 40 480 0 c120 -40 360 40 480 0 c120 -40 360 40 480 0 c120 -40 360 40 480 0 V320 H0 Z"/><path class="crest" d="M0 150 c120 -40 360 40 480 0 c120 -40 360 40 480 0 c120 -40 360 40 480 0 c120 -40 360 40 480 0 c120 -40 360 40 480 0 c120 -40 360 40 480 0"/></svg>
+</div>
+<main>
+  <header>
+    <h1><svg class="mark" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path d="M2 9 q4 -4 7 0 t7 0 t7 0 t7 0"/><path d="M2 16 q4 -4 7 0 t7 0 t7 0 t7 0" opacity=".65"/><path d="M2 23 q4 -4 7 0 t7 0 t7 0 t7 0" opacity=".35"/></svg>Shrink a video</h1>
+    <p class="lead">Pick a clip, pick a size, get an MP4 that fits under Discord's upload limit (or wherever you're sending it).</p>
+    <p class="privacy">Your video never leaves your computer. Everything happens inside this browser tab, so nothing is uploaded to a server.</p>
+  </header>
+
+  <div class="card">
+
+  <section id="drop" aria-label="Choose a video">
+    <p>Drop a video here</p>
+    <p class="sub">mp4, mov, mkv or webm</p>
+    <button type="button" id="browse">Browse…</button>
+    <input type="file" id="file" accept=".mp4,.mov,.mkv,.webm,video/*" hidden>
+  </section>
+  <p id="fileInfo" hidden></p>
+
+  <fieldset id="targets">
+    <legend>Target size</legend>
+    <div class="targets">
+      <label><input type="radio" name="target" value="8"> 8 MB</label>
+      <label><input type="radio" name="target" value="10" checked> 10 MB</label>
+      <label><input type="radio" name="target" value="20"> 20 MB</label>
+      <label><input type="radio" name="target" value="25"> 25 MB</label>
+      <label><input type="radio" name="target" value="50"> 50 MB</label>
+      <label><input type="radio" name="target" value="100"> 100 MB</label>
+      <label><input type="radio" name="target" value="custom"> Custom: <input type="number" id="custom" min="1" step="any" inputmode="decimal" aria-label="Custom size in MB"> MB</label>
+    </div>
+    <p class="hint">Discord's free limit is 10 MB for most servers. Check the current limit for your site.</p>
+  </fieldset>
+
+  <details id="options">
+    <summary>Options</summary>
+    <div class="opts">
+      <div class="row">
+        <label for="res">Resolution</label>
+        <select id="res">
+          <option value="0">Original</option>
+          <option value="1080">1080p</option>
+          <option value="720">720p</option>
+          <option value="480">480p</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="fps">Frame rate</label>
+        <select id="fps">
+          <option value="0">Original</option>
+          <option value="60">60</option>
+          <option value="30">30</option>
+        </select>
+      </div>
+      <div class="row check">
+        <input type="checkbox" id="noAudio"> <label for="noAudio">Remove audio</label>
+      </div>
+      <div class="row check">
+        <input type="checkbox" id="fast"> <label for="fast">Fast mode (one pass: quicker, slightly less accurate size)</label>
+      </div>
+    </div>
+  </details>
+
+  <p id="estimate" aria-live="polite"></p>
+  <div id="warning" class="note warn" hidden></div>
+
+  <div class="actions">
+    <button type="button" id="compress" class="primary" disabled>Compress</button>
+  </div>
+
+  <div id="progressBox" hidden>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="barWrap"><div id="bar"></div></div>
+    <div class="progress-line">
+      <span id="status" aria-live="polite"></span>
+      <span><span id="pct">0%</span> <button type="button" id="cancel">Cancel</button></span>
+    </div>
+  </div>
+
+  <div id="error" class="note err" role="alert" hidden></div>
+
+  <div id="result" hidden>
+    <h2>Done</h2>
+    <p id="resultText"></p>
+    <p id="resultWarn" class="note warn" hidden></p>
+    <div class="actions" style="margin-top:0">
+      <a id="download" class="btn" href="#">Download</a>
+      <button type="button" id="retry" hidden>Retry with lower settings</button>
+    </div>
+  </div>
+
+  </div>
+
+  <footer>
+    <strong>Good to know</strong>
+    <ul>
+      <li>The first run downloads the encoder (about 30 MB). After that your browser caches it.</li>
+      <li>Encoding runs on your CPU inside the browser, so it's slower than a desktop app. A few minutes for a short clip is normal; a long or high-resolution video can take much longer.</li>
+      <li>The whole video is loaded into memory. Files over roughly 1 GB may fail, especially on phones or in older browsers. Desktop Chrome, Edge and Firefox work best.</li>
+      <li>Keep this tab open and in the foreground while it works.</li>
+      <li>Sizes are in MB as most upload sites count them (1 MB = 1,048,576 bytes). The result is aimed about 5% under your target.</li>
+    </ul>
+  </footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ---------- config ---------- */
+  const FFMPEG_VER = '0.12.10';
+  const CORE_VER = '0.12.6';
+  const SOURCES = [
+    { lib: `https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@${FFMPEG_VER}/dist/umd`,
+      core: `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${CORE_VER}/dist/esm` },
+    { lib: `https://unpkg.com/@ffmpeg/ffmpeg@${FFMPEG_VER}/dist/umd`,
+      core: `https://unpkg.com/@ffmpeg/core@${CORE_VER}/dist/esm` }
+  ];
+  const AUDIO_KBPS = 128;
+  const HEADROOM = 0.95;          // aim 5% under target
+  const LOW_KBPS = 100;           // below this: warn
+  const MIN_KBPS = 20;            // below this: refuse
+  const MAX_BYTES = 2 * 1024 ** 3;
+  const EXTS = ['mp4', 'mov', 'mkv', 'webm'];
+
+  /* ---------- elements ---------- */
+  const $ = id => document.getElementById(id);
+  const drop = $('drop'), fileInput = $('file'), browseBtn = $('browse');
+  const fileInfo = $('fileInfo'), customInput = $('custom');
+  const resSel = $('res'), fpsSel = $('fps'), noAudio = $('noAudio'), fast = $('fast');
+  const estimate = $('estimate'), warning = $('warning');
+  const compressBtn = $('compress'), cancelBtn = $('cancel');
+  const progressBox = $('progressBox'), bar = $('bar'), barWrap = $('barWrap');
+  const statusEl = $('status'), pctEl = $('pct');
+  const errorBox = $('error'), resultBox = $('result'), resultText = $('resultText');
+  const resultWarn = $('resultWarn'), downloadLink = $('download'), retryBtn = $('retry');
+
+  /* ---------- state ---------- */
+  let file = null;
+  let duration = null;      // seconds, from <video> (may be null for odd containers)
+  let ff = null;            // FFmpeg instance
+  let scriptLoaded = false;
+  let busy = false;
+  let cancelled = false;
+  let phase = { start: 0, end: 100 };
+  let logBuf = [];
+  let outUrl = null;
+  let retryCount = 0;
+  let lastTargetMB = 0;
+
+  /* ---------- helpers ---------- */
+  const fmtSize = b => (b / 1048576).toFixed(b < 10485760 ? 2 : 1) + ' MB';
+  const extOf = name => (name.split('.').pop() || '').toLowerCase();
+
+  function getTargetMB() {
+    const sel = document.querySelector('input[name=target]:checked').value;
+    if (sel === 'custom') {
+      const v = parseFloat(customInput.value);
+      return v > 0 ? v : null;
+    }
+    return parseFloat(sel);
+  }
+
+  function videoKbps(targetMB, dur, audioKbps, squeeze = 1) {
+    return Math.floor((targetMB * 8192 / dur) * HEADROOM * squeeze - audioKbps);
+  }
+
+  function showError(msg) { errorBox.textContent = msg; errorBox.hidden = false; }
+  function clearError() { errorBox.hidden = true; errorBox.textContent = ''; }
+
+  function setProgress(p, text) {
+    p = Math.max(0, Math.min(100, p));
+    bar.style.width = p + '%';
+    pctEl.textContent = Math.round(p) + '%';
+    barWrap.setAttribute('aria-valuenow', Math.round(p));
+    if (text) statusEl.textContent = text;
+  }
+
+  function setBusy(b) {
+    busy = b;
+    compressBtn.disabled = b || !file;
+    progressBox.hidden = !b;
+    [resSel, fpsSel, noAudio, fast, customInput].forEach(el => el.disabled = b);
+    document.querySelectorAll('input[name=target]').forEach(el => el.disabled = b);
+    browseBtn.disabled = b;
+  }
+
+  /* ---------- file selection ---------- */
+  function readDuration(f) {
+    return new Promise(resolve => {
+      const v = document.createElement('video');
+      const url = URL.createObjectURL(f);
+      let finished = false;
+      const done = d => {
+        if (finished) return;
+        finished = true;
+        URL.revokeObjectURL(url);
+        v.removeAttribute('src');
+        v.load();
+        resolve(d);
+      };
+      v.preload = 'metadata';
+      v.muted = true;
+      v.onloadedmetadata = () => done(isFinite(v.duration) && v.duration > 0 ? v.duration : null);
+      v.onerror = () => done(null);
+      setTimeout(() => done(null), 8000);
+      v.src = url;
+    });
+  }
+
+  async function chooseFile(f) {
+    clearError();
+    resultBox.hidden = true;
+    if (!f) return;
+    const ok = EXTS.includes(extOf(f.name)) || f.type.startsWith('video/');
+    if (!ok) { showError('That doesn\'t look like a video. Try an mp4, mov, mkv or webm file.'); return; }
+    if (f.size > MAX_BYTES) {
+      showError('This file is over 2 GB, which is more than a browser can hold in memory for encoding. Trim it first, or use a desktop tool such as HandBrake or ffmpeg.');
+      return;
+    }
+    file = f;
+    retryCount = 0;
+    duration = null;
+    fileInfo.innerHTML = '';
+    fileInfo.append(document.createTextNode(f.name + ' '));
+    const s = document.createElement('span');
+    s.textContent = '(' + fmtSize(f.size) + ')';
+    fileInfo.append(s);
+    fileInfo.hidden = false;
+    compressBtn.disabled = busy;
+    estimate.textContent = 'Reading video length…';
+    duration = await readDuration(f);
+    if (file !== f) return;
+    updateEstimate();
+  }
+
+  browseBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { chooseFile(fileInput.files[0]); fileInput.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); if (!busy) drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { if (!busy) chooseFile(e.dataTransfer.files[0]); });
+  // stop the browser from navigating to a file dropped outside the zone
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+
+  customInput.addEventListener('focus', () => {
+    document.querySelector('input[name=target][value=custom]').checked = true;
+    updateEstimate();
+  });
+  customInput.addEventListener('input', updateEstimate);
+  document.querySelectorAll('input[name=target]').forEach(r => r.addEventListener('change', updateEstimate));
+  noAudio.addEventListener('change', updateEstimate);
+  resSel.addEventListener('change', updateEstimate);
+
+  /* ---------- estimate & warnings ---------- */
+  function updateEstimate() {
+    warning.hidden = true;
+    if (!file) { estimate.textContent = ''; return; }
+    const t = getTargetMB();
+    if (!t) { estimate.textContent = 'Enter a custom size in MB.'; return; }
+    if (!duration) {
+      estimate.textContent = 'Couldn\'t read the length yet. It will be checked when you press Compress.';
+      return;
+    }
+    const aud = noAudio.checked ? 0 : AUDIO_KBPS;
+    const vk = videoKbps(t, duration, aud);
+    const mins = Math.floor(duration / 60), secs = Math.round(duration % 60);
+    estimate.textContent = `Length ${mins}:${String(secs).padStart(2, '0')} → video bitrate about ${Math.max(vk, 0)} kbps.`;
+
+    if (file.size <= t * 1048576) {
+      showWarning(`This file is already under ${t} MB. Compressing it will just re-encode it at lower quality.`);
+    } else if (vk < MIN_KBPS) {
+      showWarning(lowBitrateAdvice(t, aud, true));
+    } else if (vk < LOW_KBPS) {
+      showWarning(lowBitrateAdvice(t, aud, false));
+    }
+  }
+
+  function lowBitrateAdvice(t, aud, impossible) {
+    const needMB = Math.ceil((300 + aud) * duration / 8192 / HEADROOM);
+    const lead = impossible
+      ? `${t} MB is too small for a video this long, so there's nothing left for the picture.`
+      : `${t} MB is tight for a video this long. Expect a blocky, blurry result.`;
+    const tips = [`pick a target of around ${needMB} MB or more`, 'cut the video shorter'];
+    if (resSel.value !== '480') tips.push('choose a lower resolution under Options');
+    if (!noAudio.checked) tips.push('remove the audio');
+    const last = tips.pop();
+    return lead + ' You can ' + tips.join(', ') + ', or ' + last + '.';
+  }
+
+  function showWarning(msg) { warning.textContent = msg; warning.hidden = false; }
+
+  /* ---------- ffmpeg loading ---------- */
+  function loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Could not load ' + url));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function blobURL(url, type) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Download failed (${res.status}) for ${url}`);
+    const buf = await res.arrayBuffer();
+    return URL.createObjectURL(new Blob([buf], { type }));
+  }
+
+  async function ensureFFmpeg() {
+    if (ff) return ff;
+    if (typeof WebAssembly === 'undefined') {
+      throw new Error('This browser doesn\'t support WebAssembly. Try a recent version of Chrome, Edge, Firefox or Safari.');
+    }
+    setProgress(0, 'Loading the encoder (first time only)…');
+    let lastErr = null;
+    for (const src of SOURCES) {
+      try {
+        if (!scriptLoaded) { await loadScript(src.lib + '/ffmpeg.js'); scriptLoaded = true; }
+        const inst = new FFmpegWASM.FFmpeg();
+        inst.on('log', ({ message }) => { logBuf.push(message); });
+        inst.on('progress', ({ progress }) => {
+          if (!isFinite(progress)) return;
+          const p = Math.max(0, Math.min(1, progress));
+          setProgress(phase.start + (phase.end - phase.start) * p);
+        });
+        await inst.load({
+          classWorkerURL: await blobURL(src.lib + '/814.ffmpeg.js', 'text/javascript'),
+          coreURL: await blobURL(src.core + '/ffmpeg-core.js', 'text/javascript'),
+          wasmURL: await blobURL(src.core + '/ffmpeg-core.wasm', 'application/wasm')
+        });
+        ff = inst;
+        return ff;
+      } catch (e) { lastErr = e; }
+    }
+    throw new Error('Couldn\'t download the encoder. Check your internet connection (and any ad/script blocker), then try again. ' + (lastErr ? '(' + lastErr.message + ')' : ''));
+  }
+
+  /* ---------- probing via ffmpeg log ---------- */
+  async function probe(name) {
+    logBuf = [];
+    try { await ff.exec(['-i', name]); } catch (_) { /* ffmpeg exits non-zero with no output file; that's expected */ }
+    const log = logBuf.join('\n');
+    const info = { duration: null, height: null, fps: null, hasAudio: /Stream #.*Audio:/.test(log) };
+    let m = log.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+    if (m) info.duration = (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]);
+    m = log.match(/Stream #.*Video:.*?,\s*(\d{2,5})x(\d{2,5})/);
+    if (m) info.height = +m[2];
+    m = log.match(/Stream #.*Video:[^\n]*?(\d+(?:\.\d+)?)\s*fps/);
+    if (m) info.fps = parseFloat(m[1]);
+    return info;
+  }
+
+  /* ---------- compress ---------- */
+  async function compress(isRetry = false) {
+    if (busy || !file) return;
+    clearError();
+    resultBox.hidden = true;
+    warning.hidden = true;
+
+    const t = getTargetMB();
+    if (!t) { showError('Pick a target size, or type a custom number of MB.'); return; }
+    if (!isRetry) retryCount = 0;
+    lastTargetMB = t;
+
+    const resCap = parseInt(resSel.value, 10);
+    const fpsCap = parseInt(fpsSel.value, 10);
+    const ext = EXTS.includes(extOf(file.name)) ? extOf(file.name) : 'mp4';
+    const inName = 'input.' + ext;
+    const outName = 'output.mp4';
+    const squeeze = Math.pow(0.88, retryCount);
+
+    cancelled = false;
+    setBusy(true);
+    setProgress(0, 'Starting…');
+
+    try {
+      await ensureFFmpeg();
+
+      setProgress(0, 'Reading your video…');
+      await ff.writeFile(inName, new Uint8Array(await file.arrayBuffer()));
+
+      const info = await probe(inName);
+      const dur = info.duration || duration;
+      if (!dur) throw new Error('Couldn\'t work out how long this video is, so the bitrate can\'t be calculated. The file may be damaged or use an unusual format.');
+
+      const audioKbps = (noAudio.checked || !info.hasAudio) ? 0 : AUDIO_KBPS;
+      const vk = videoKbps(t, dur, audioKbps, squeeze);
+
+      if (vk < MIN_KBPS) {
+        throw new Error(lowBitrateAdvice(t, audioKbps, true).replace(/ is too small/, ' is too small'));
+      }
+      if (vk < LOW_KBPS) {
+        const go = window.confirm(`The video bitrate will be only ${vk} kbps, which usually looks very blocky.\n\nContinue anyway? (Cancel to change the target or options.)`);
+        if (!go) { await cleanup(inName, outName); setBusy(false); updateEstimate(); return; }
+      }
+
+      const vf = [];
+      if (resCap && info.height && info.height > resCap) vf.push(`scale=-2:${resCap}`);
+      if (fpsCap && info.fps && info.fps > fpsCap + 0.5) vf.push(`fps=${fpsCap}`);
+      const vfArgs = vf.length ? ['-vf', vf.join(',')] : [];
+      const base = ['-i', inName, ...vfArgs, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-b:v', vk + 'k'];
+      const audioArgs = audioKbps ? ['-c:a', 'aac', '-b:a', audioKbps + 'k'] : ['-an'];
+      const tail = ['-movflags', '+faststart', outName];
+
+      let twoPass = !fast.checked;
+      if (twoPass) {
+        phase = { start: 0, end: 45 };
+        setProgress(0, 'Pass 1 of 2: analysing…');
+        let code = -1;
+        try {
+          code = await ff.exec([...base, '-pass', '1', '-passlogfile', 'pass', '-an', '-f', 'null', '/dev/null']);
+        } catch (e) { if (cancelled) throw e; }
+        if (code !== 0) twoPass = false; // fall back to a single pass
+      }
+
+      if (twoPass) {
+        phase = { start: 45, end: 100 };
+        setProgress(45, 'Pass 2 of 2: encoding…');
+        const code = await ff.exec([...base, '-pass', '2', '-passlogfile', 'pass', ...audioArgs, ...tail]);
+        if (code !== 0) throw new Error('The encoder stopped with an error. The file may use a codec this build can\'t read.');
+      } else {
+        phase = { start: 0, end: 100 };
+        setProgress(0, 'Encoding…');
+        const code = await ff.exec([...base, '-maxrate', vk + 'k', '-bufsize', (vk * 2) + 'k', ...audioArgs, ...tail]);
+        if (code !== 0) throw new Error('The encoder stopped with an error. The file may use a codec this build can\'t read.');
+      }
+
+      setProgress(100, 'Finishing up…');
+      const data = await ff.readFile(outName);
+      const blob = new Blob([data.buffer], { type: 'video/mp4' });
+      await cleanup(inName, outName);
+      showResult(blob);
+    } catch (e) {
+      if (cancelled) {
+        ff = null; // terminate() kills the worker; it gets reloaded next time
+        statusEl.textContent = 'Cancelled.';
+        showError('Cancelled. Nothing was saved.');
+      } else {
+        handleError(e);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cleanup(...names) {
+    if (!ff) return;
+    for (const n of [...names, 'pass-0.log', 'pass-0.log.mbtree']) {
+      try { await ff.deleteFile(n); } catch (_) {}
+    }
+  }
+
+  function handleError(e) {
+    const msg = String((e && e.message) || e);
+    if (/memory|abort|out of bounds|allocation|RuntimeError|unreachable/i.test(msg)) {
+      ff = null; // the wasm instance is probably dead; start fresh next time
+      showError('The browser ran out of memory. Close other tabs and try again, try a smaller file, choose a lower resolution under Options, or use Fast mode. Large videos can exceed what a browser tab is allowed to use.');
+    } else {
+      showError(msg);
+    }
+  }
+
+  cancelBtn.addEventListener('click', () => {
+    if (!busy) return;
+    cancelled = true;
+    if (ff) { try { ff.terminate(); } catch (_) {} }
+  });
+
+  /* ---------- result ---------- */
+  function showResult(blob) {
+    if (outUrl) URL.revokeObjectURL(outUrl);
+    outUrl = URL.createObjectURL(blob);
+    const base = file.name.replace(/\.[^.]+$/, '');
+    downloadLink.href = outUrl;
+    downloadLink.download = base + '-compressed.mp4';
+
+    const targetBytes = lastTargetMB * 1048576;
+    const over = blob.size > targetBytes;
+    resultText.innerHTML = '';
+    resultText.append(
+      document.createTextNode(`New size: `),
+      Object.assign(document.createElement('strong'), { textContent: fmtSize(blob.size) }),
+      document.createTextNode(` (was ${fmtSize(file.size)}, target ${lastTargetMB} MB). `)
+    );
+    if (!over) {
+      const ok = document.createElement('span');
+      ok.className = 'good';
+      ok.textContent = 'Fits.';
+      resultText.append(ok);
+      resultWarn.hidden = true;
+      retryBtn.hidden = true;
+    } else {
+      resultWarn.hidden = false;
+      resultWarn.textContent = `This came out ${fmtSize(blob.size - targetBytes)} over your ${lastTargetMB} MB target. Container overhead and hard-to-compress footage can push it past the estimate. You can still download it, or retry with a lower bitrate` + (retryCount >= 1 ? ' and a smaller resolution.' : '.');
+      retryBtn.hidden = false;
+    }
+    resultBox.hidden = false;
+    resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  retryBtn.addEventListener('click', () => {
+    retryCount++;
+    if (retryCount >= 2) {
+      // also step the resolution down
+      const order = ['0', '1080', '720', '480'];
+      let i = order.indexOf(resSel.value);
+      if (i === 0) i = 1;
+      if (i < order.length - 1) resSel.value = order[i + 1];
+    }
+    compress(true);
+  });
+
+  compressBtn.addEventListener('click', () => compress(false));
+
+  window.addEventListener('beforeunload', e => { if (busy) { e.preventDefault(); e.returnValue = ''; } });
+})();
+</script>
+</body>
+</html>
